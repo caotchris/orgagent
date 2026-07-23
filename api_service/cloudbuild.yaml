@@ -1,7 +1,9 @@
 steps:
   - name: 'gcr.io/cloud-builders/docker'
+    dir: 'api_service'
     args: ['build', '-t', 'gcr.io/$PROJECT_ID/orgagent-api', '.']
   - name: 'gcr.io/cloud-builders/docker'
+    dir: 'api_service'
     args: ['push', 'gcr.io/$PROJECT_ID/orgagent-api']
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
