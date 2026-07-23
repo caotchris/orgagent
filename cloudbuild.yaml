@@ -16,3 +16,5 @@ steps:
       - --set-env-vars=GOOGLE_CLOUD_PROJECT=numeric-chassis-501320-m1,DB_PASSWORD=12345678,DB_INSTANCE=numeric-chassis-501320-m1:us-central1:orgagent-db,DB_SOCKET_DIR=/cloudsql
 images:
   - 'gcr.io/$PROJECT_ID/orgagent-mcp'
+options:
+  logging: CLOUD_LOGGING_ONLY
