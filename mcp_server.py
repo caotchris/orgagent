@@ -110,6 +110,29 @@ def crear_recordatorio(email: str, mensaje: str) -> str:
     conn.close()
     return f"Recordatorio creado para {email}: {mensaje}"
 
+@mcp.tool()
+def desactivar_usuario_inactivo(email: str, motivo: str) -> str:
+    """Desactiva (soft delete) a un usuario inactivo, sin borrar sus datos, y deja registro en audit_log."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        conn.close()
+        return f"No se encontro ningun usuario con el correo {email}."
+    user_id = row[0]
+    cur.execute("UPDATE users SET status = 'inactivo' WHERE id = %s", (user_id,))
+    cur.execute(
+        "INSERT INTO audit_log (accion, tabla_afectada, registro_id, detalles, ejecutado_por) "
+        "VALUES (%s, %s, %s, %s, %s)",
+        ("desactivar_usuario", "users", user_id, motivo, "agente_acciones"),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+    return f"Usuario {email} desactivado (soft delete). Motivo: {motivo}"
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
     mcp.run(transport="streamable-http", host="0.0.0.0", port=port, path="/mcp")

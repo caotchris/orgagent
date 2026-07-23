@@ -117,13 +117,16 @@ async def lifespan(app: FastAPI):
             "y explica que solo puedes mostrar los datos de la sesion autenticada."
         ),
     )
+    
     agente_acciones = create_react_agent(
-        llm, [tools_by_name["listar_usuarios_inactivos"], tools_by_name["crear_recordatorio"]], name="agente_acciones",
+        llm, [tools_by_name["listar_usuarios_inactivos"], tools_by_name["crear_recordatorio"], tools_by_name["desactivar_usuario_inactivo"]], name="agente_acciones",
         prompt=(
             "Eres el agente de acciones proactivas de OrgAgent. "
             "Usa listar_usuarios_inactivos con minutos=0 para encontrar usuarios inactivos. "
             "Para CADA usuario que encuentres, llama a crear_recordatorio con su email y un mensaje "
             "breve y amable invitandolo a confirmar su participacion en el proximo evento de fin de semana. "
+            "Solo usa desactivar_usuario_inactivo si el usuario lleva MUCHO tiempo inactivo (no por una simple "
+            "falta de actividad reciente) y siempre indica un motivo claro. Esta accion no la debes tomar a la ligera. "
             "Si no hay usuarios inactivos, no hagas nada y responde que no hay recordatorios que enviar."
         ),
     )
