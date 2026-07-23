@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-dotenv
+langchain-google-vertexai
+langchain-mcp-adapters
+langgraph
+langgraph-supervisor
+langgraph-checkpoint-postgres
+psycopg[binary]
