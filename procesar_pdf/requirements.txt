@@ -1,0 +1,6 @@
+functions-framework
+google-cloud-storage
+pypdf
+psycopg2-binary
+pgvector
+google-cloud-aiplatform

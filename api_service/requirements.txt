@@ -7,3 +7,4 @@ langgraph
 langgraph-supervisor
 langgraph-checkpoint-postgres
 psycopg[binary]
+firebase-admin

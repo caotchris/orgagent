@@ -15,7 +15,8 @@ steps:
       - --region=us-central1
       - --allow-unauthenticated
       - --add-cloudsql-instances=numeric-chassis-501320-m1:us-central1:orgagent-db
-      - --set-env-vars=GOOGLE_CLOUD_PROJECT=numeric-chassis-501320-m1,DB_PASSWORD=12345678,DB_INSTANCE=numeric-chassis-501320-m1:us-central1:orgagent-db,DB_SOCKET_DIR=/cloudsql,MCP_URL=https://orgagent-mcp-514997940160.us-central1.run.app/mcp
+      - --set-env-vars=GOOGLE_CLOUD_PROJECT=numeric-chassis-501320-m1,DB_INSTANCE=numeric-chassis-501320-m1:us-central1:orgagent-db,DB_SOCKET_DIR=/cloudsql,MCP_URL=https://orgagent-mcp-514997940160.us-central1.run.app/mcp,LANGCHAIN_TRACING_V2=true,LANGCHAIN_PROJECT=orgagent
+      - --set-secrets=DB_PASSWORD=db-password:latest,LANGCHAIN_API_KEY=langsmith-api-key:latest
 images:
   - 'gcr.io/$PROJECT_ID/orgagent-api'
 options:
