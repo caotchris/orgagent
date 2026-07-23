@@ -1,0 +1,18 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/orgagent-mcp', '.']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/orgagent-mcp']
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - orgagent-mcp
+      - --image=gcr.io/$PROJECT_ID/orgagent-mcp
+      - --region=us-central1
+      - --allow-unauthenticated
+      - --add-cloudsql-instances=numeric-chassis-501320-m1:us-central1:orgagent-db
+      - --set-env-vars=GOOGLE_CLOUD_PROJECT=numeric-chassis-501320-m1,DB_PASSWORD=12345678,DB_INSTANCE=numeric-chassis-501320-m1:us-central1:orgagent-db,DB_SOCKET_DIR=/cloudsql
+images:
+  - 'gcr.io/$PROJECT_ID/orgagent-mcp'
