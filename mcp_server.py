@@ -39,7 +39,7 @@ def get_conn():
     return conn
 
 
-UMBRAL_DISTANCIA_RAG = 0.35  # calibrar empiricamente probando preguntas reales; menor = mas estricto
+UMBRAL_DISTANCIA_RAG = 1.0  # calibrado con datos reales: relevantes ~0.79-0.94, irrelevantes >=1.06
 
 @mcp.tool()
 def buscar_documentos(pregunta: str) -> str:
@@ -70,7 +70,8 @@ def buscar_documentos(pregunta: str) -> str:
     partes = []
     for content, source_file, distancia in filas:
         if distancia <= UMBRAL_DISTANCIA_RAG:
-            partes.append(f"[Fuente: {source_file} | relevancia={1 - distancia:.2f}]\n{content}")
+            fuente = source_file if source_file else "documento institucional (sin nombre registrado)"
+            partes.append(f"[Fuente: {fuente} | relevancia={1 - distancia:.2f}]\n{content}")
 
     return "\n\n---\n\n".join(partes)
 
