@@ -90,7 +90,7 @@ async def verificar_salida(pregunta: str, respuesta: str, contexto: str, email_a
     print(f"GUARDRAIL DE SALIDA RECHAZO UNA RESPUESTA: {texto_veredicto}")
     return (
         "No puedo confirmar que esta respuesta este bien sustentada en la informacion disponible, "
-        f"asi que prefiero no compartirla tal cual. [DEBUG: {texto_veredicto}] ¿Puedes reformular tu pregunta?"
+        "asi que prefiero no compartirla tal cual. ¿Puedes reformular tu pregunta?"
     )
 
 async def verificar_usuario(authorization: str = Header(None)):
