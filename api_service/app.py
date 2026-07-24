@@ -11,6 +11,7 @@ from langchain_core.tools import StructuredTool
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph_supervisor import create_supervisor
+import psycopg
 import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials
 
@@ -64,6 +65,21 @@ async def _extraer_contexto_herramientas(messages) -> str:
             if texto:
                 textos.append(texto)
     return "\n---\n".join(textos[-3:])
+
+
+async def _reset_thread_memoria(thread_id: str):
+    """Auto-recuperacion: si el grafo falla (p.ej. estado corrupto en el historial
+    acumulado del hilo), limpiamos la memoria de ESE hilo para que la conversacion
+    no quede rota para siempre."""
+    try:
+        async with await psycopg.AsyncConnection.connect(DB_URI) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("DELETE FROM checkpoint_writes WHERE thread_id = %s", (thread_id,))
+                await cur.execute("DELETE FROM checkpoint_blobs WHERE thread_id = %s", (thread_id,))
+                await cur.execute("DELETE FROM checkpoints WHERE thread_id = %s", (thread_id,))
+            await conn.commit()
+    except Exception:
+        print(f"ADVERTENCIA: no se pudo limpiar la memoria del thread {thread_id} tras un error")
 
 
 async def verificar_salida(pregunta: str, respuesta: str, contexto: str, email_autenticado: str, llm) -> str:
@@ -265,6 +281,10 @@ async def chat(req: ChatRequest, user: dict = Depends(verificar_usuario)):
     try:
         config = {"configurable": {"thread_id": thread_id}}
         result = await state["supervisor"].ainvoke({"messages": [("user", mensaje)]}, config=config)
+    except Exception as e:
+        print(f"ERROR en supervisor.ainvoke, se reinicia memoria del thread {thread_id}: {e}")
+        await _reset_thread_memoria(thread_id)
+        return {"respuesta": "Hubo un problema y tuve que reiniciar el historial de esta conversación. Por favor intenta tu pregunta de nuevo."}
     finally:
         current_user_email.reset(token_ctx)
 
