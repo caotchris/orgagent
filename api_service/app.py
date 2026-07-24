@@ -31,7 +31,13 @@ HANDOFF_PHRASES = ("Transferring back", "Successfully transferred")
 firebase_admin.initialize_app(credentials.ApplicationDefault(), {"projectId": PROJECT_ID})
 
 current_user_email = contextvars.ContextVar("current_user_email", default=None)
-current_rag_context = contextvars.ContextVar("current_rag_context", default="")
+# Guarda un dict MUTABLE (no un string). LangGraph ejecuta cada nodo como una Task
+# de asyncio aparte, y cada Task recibe una COPIA del contexto: si el hijo hace
+# `.set(...)`, esa copia no se propaga de vuelta al padre. Pero si el padre crea
+# un dict antes de invocar el grafo y el hijo solo lo MUTA (no lo reasigna), todas
+# las copias del contexto siguen apuntando al mismo objeto en memoria, asi que la
+# mutacion si es visible en el padre despues del ainvoke.
+current_rag_context = contextvars.ContextVar("current_rag_context", default=None)
 
 
 def extract_text(content):
@@ -49,8 +55,8 @@ def extract_text(content):
 
 
 async def _extraer_contexto_herramientas(messages) -> str:
-    """Concatena lo que las ultimas herramientas devolvieron: es el contexto real
-    que el agente uso para redactar su respuesta (para el chequeo de groundedness)."""
+    """Respaldo: concatena lo que las ultimas herramientas devolvieron, por si el
+    holder mutable no tuviera nada (no deberia pasar, pero por si acaso)."""
     textos = []
     for m in messages:
         if type(m).__name__ == "ToolMessage":
@@ -159,7 +165,13 @@ async def lifespan(app: FastAPI):
         if pregunta:
             contexto = await tools_by_name["buscar_documentos"].ainvoke({"pregunta": pregunta})
 
-        current_rag_context.set(contexto)
+        # Escribimos el contexto en el holder mutable compartido (ver nota junto a
+        # la definicion de current_rag_context). NO usamos current_rag_context.set()
+        # aqui porque este hook corre dentro de una Task hija y ese .set() no se
+        # veria reflejado en /chat.
+        holder = current_rag_context.get()
+        if holder is not None:
+            holder["contexto"] = contexto
 
         system = SystemMessage(content=(
             "Eres el agente de conocimiento de OrgAgent. A continuacion se te entrega el CONTEXTO ya recuperado "
@@ -247,8 +259,9 @@ async def chat(req: ChatRequest, user: dict = Depends(verificar_usuario)):
     email = user.get("email", "")
     thread_id = f"user-{uid}"
 
+    rag_holder = {"contexto": ""}  # objeto mutable compartido, ver nota arriba
     token_ctx = current_user_email.set(email)
-    token_rag = current_rag_context.set("")
+    token_rag = current_rag_context.set(rag_holder)
     try:
         config = {"configurable": {"thread_id": thread_id}}
         result = await state["supervisor"].ainvoke({"messages": [("user", mensaje)]}, config=config)
@@ -279,7 +292,7 @@ async def chat(req: ChatRequest, user: dict = Depends(verificar_usuario)):
             respuesta = text
             break
 
-    contexto = current_rag_context.get()
+    contexto = rag_holder["contexto"]
     if not contexto:
         contexto = await _extraer_contexto_herramientas(result["messages"])
     current_rag_context.reset(token_rag)
