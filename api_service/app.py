@@ -30,12 +30,6 @@ else:
 firebase_admin.initialize_app(credentials.ApplicationDefault(), {"projectId": PROJECT_ID})
 
 current_user_email = contextvars.ContextVar("current_user_email", default=None)
-# Guarda un dict MUTABLE (no un string). LangGraph ejecuta cada nodo como una Task
-# de asyncio aparte, y cada Task recibe una COPIA del contexto: si el hijo hace
-# `.set(...)`, esa copia no se propaga de vuelta al padre. Pero si el padre crea
-# un dict antes de invocar el grafo y el hijo solo lo MUTA (no lo reasigna), todas
-# las copias del contexto siguen apuntando al mismo objeto en memoria, asi que la
-# mutacion si es visible en el padre despues del ainvoke.
 current_rag_context = contextvars.ContextVar("current_rag_context", default=None)
 
 
@@ -54,8 +48,6 @@ def extract_text(content):
 
 
 async def _extraer_contexto_herramientas(messages) -> str:
-    """Respaldo: concatena lo que las ultimas herramientas devolvieron, por si el
-    holder mutable no tuviera nada (no deberia pasar, pero por si acaso)."""
     textos = []
     for m in messages:
         if type(m).__name__ == "ToolMessage":
@@ -66,9 +58,6 @@ async def _extraer_contexto_herramientas(messages) -> str:
 
 
 async def _reset_thread_memoria(thread_id: str):
-    """Auto-recuperacion: si el grafo falla (p.ej. estado corrupto en el historial
-    acumulado del hilo), limpiamos la memoria de ESE hilo para que la conversacion
-    no quede rota para siempre."""
     try:
         async with await psycopg.AsyncConnection.connect(DB_URI) as conn:
             async with conn.cursor() as cur:
@@ -81,8 +70,6 @@ async def _reset_thread_memoria(thread_id: str):
 
 
 async def verificar_salida(pregunta: str, respuesta: str, contexto: str, email_autenticado: str, llm) -> str:
-    """Guardrail de salida: verifica que la respuesta este sustentada en el contexto
-    recuperado (Self-RAG) y que no filtre datos de otro usuario, antes de devolverla."""
     if not respuesta:
         return respuesta
 
@@ -111,8 +98,6 @@ async def verificar_salida(pregunta: str, respuesta: str, contexto: str, email_a
         return respuesta
 
     print(f"GUARDRAIL DE SALIDA RECHAZO UNA RESPUESTA: {texto_veredicto}")
-    print(f"  Respuesta evaluada: {respuesta[:300]!r}")
-    print(f"  Contexto (primeros 300 chars): {(contexto or '')[:300]!r}")
     return (
         "No puedo confirmar que esta respuesta este bien sustentada en la informacion disponible, "
         "asi que prefiero no compartirla tal cual. ¿Puedes reformular tu pregunta?"
@@ -181,10 +166,6 @@ async def lifespan(app: FastAPI):
         if pregunta:
             contexto = await tools_by_name["buscar_documentos"].ainvoke({"pregunta": pregunta})
 
-        # Escribimos el contexto en el holder mutable compartido (ver nota junto a
-        # la definicion de current_rag_context). NO usamos current_rag_context.set()
-        # aqui porque este hook corre dentro de una Task hija y ese .set() no se
-        # veria reflejado en /chat.
         holder = current_rag_context.get()
         if holder is not None:
             holder["contexto"] = contexto
@@ -268,7 +249,7 @@ async def chat(req: ChatRequest, user: dict = Depends(verificar_usuario)):
     email = user.get("email", "")
     thread_id = f"user-{uid}"
 
-    rag_holder = {"contexto": ""}  # objeto mutable compartido, ver nota arriba
+    rag_holder = {"contexto": ""}
     token_ctx = current_user_email.set(email)
     token_rag = current_rag_context.set(rag_holder)
     try:
@@ -281,20 +262,13 @@ async def chat(req: ChatRequest, user: dict = Depends(verificar_usuario)):
     finally:
         current_user_email.reset(token_ctx)
 
-    # --- DEBUG TEMPORAL: log de la estructura completa de mensajes (solo en logs del servidor) ---
-    for m in result["messages"]:
-        nombre_debug = getattr(m, "name", None)
-        texto_debug = extract_text(getattr(m, "content", None))
-        print(f"MSG tipo={type(m).__name__} name={nombre_debug!r} texto={texto_debug[:100]!r}")
-    # --- FIN DEBUG TEMPORAL ---
-
     respuesta = None
     for m in reversed(result["messages"]):
         if type(m).__name__ == "ToolMessage":
             continue
         text = extract_text(getattr(m, "content", None))
         if not text:
-            continue  # mensaje vacio (p.ej. una llamada a herramienta sin texto)
+            continue
         respuesta = text
         break
 
