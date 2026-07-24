@@ -113,6 +113,8 @@ async def verificar_salida(pregunta: str, respuesta: str, contexto: str, email_a
         return respuesta
 
     print(f"GUARDRAIL DE SALIDA RECHAZO UNA RESPUESTA: {texto_veredicto}")
+    print(f"  Respuesta evaluada: {respuesta[:300]!r}")
+    print(f"  Contexto (primeros 300 chars): {(contexto or '')[:300]!r}")
     return (
         "No puedo confirmar que esta respuesta este bien sustentada en la informacion disponible, "
         "asi que prefiero no compartirla tal cual. ¿Puedes reformular tu pregunta?"
@@ -287,6 +289,13 @@ async def chat(req: ChatRequest, user: dict = Depends(verificar_usuario)):
         return {"respuesta": "Hubo un problema y tuve que reiniciar el historial de esta conversación. Por favor intenta tu pregunta de nuevo."}
     finally:
         current_user_email.reset(token_ctx)
+
+    # --- DEBUG TEMPORAL: log de la estructura completa de mensajes ---
+    for m in result["messages"]:
+        nombre_debug = getattr(m, "name", None)
+        texto_debug = extract_text(getattr(m, "content", None))
+        print(f"MSG tipo={type(m).__name__} name={nombre_debug!r} texto={texto_debug[:100]!r}")
+    # --- FIN DEBUG TEMPORAL ---
 
     respuesta = None
     for m in reversed(result["messages"]):
