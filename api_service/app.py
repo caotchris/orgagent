@@ -289,13 +289,9 @@ async def chat(req: ChatRequest, user: dict = Depends(verificar_usuario)):
         contexto = await _extraer_contexto_herramientas(result["messages"])
     current_rag_context.reset(token_rag)
 
-    respuesta_verificada = await verificar_salida(mensaje, respuesta, contexto, email, state["llm_verificador"])
+    respuesta = await verificar_salida(mensaje, respuesta, contexto, email, state["llm_verificador"])
 
-    return {
-        "respuesta": respuesta_verificada,
-        "_debug_respuesta_cruda": respuesta,
-        "_debug_contexto": contexto,
-    }
+    return {"respuesta": respuesta}
 
 
 @app.post("/revisar-inactivos")
