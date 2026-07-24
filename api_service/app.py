@@ -259,11 +259,25 @@ async def chat(req: ChatRequest, user: dict = Depends(verificar_usuario)):
     for m in reversed(result["messages"]):
         if type(m).__name__ == "ToolMessage":
             continue
+        nombre_autor = getattr(m, "name", None)
+        if nombre_autor not in ("agente_conocimiento", "agente_datos"):
+            continue  # ignora comentarios del propio Supervisor
         text = extract_text(getattr(m, "content", None))
-        if not text or text.strip().startswith(HANDOFF_PHRASES):
+        if not text:
             continue
         respuesta = text
         break
+
+    if respuesta is None:
+        # Respaldo por si ningun mensaje trae el nombre esperado (no deberia pasar)
+        for m in reversed(result["messages"]):
+            if type(m).__name__ == "ToolMessage":
+                continue
+            text = extract_text(getattr(m, "content", None))
+            if not text or text.strip().startswith(HANDOFF_PHRASES):
+                continue
+            respuesta = text
+            break
 
     contexto = current_rag_context.get()
     if not contexto:
