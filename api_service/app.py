@@ -276,21 +276,13 @@ async def chat(req: ChatRequest, user: dict = Depends(verificar_usuario)):
         if nombre_autor not in ("agente_conocimiento", "agente_datos"):
             continue  # ignora comentarios del propio Supervisor
         text = extract_text(getattr(m, "content", None))
-        if not text:
-            continue
+        if not text or text.strip().startswith(HANDOFF_PHRASES):
+            continue  # es el mensaje automatico de traspaso, seguimos buscando la respuesta real
         respuesta = text
         break
 
     if respuesta is None:
-        # Respaldo por si ningun mensaje trae el nombre esperado (no deberia pasar)
-        for m in reversed(result["messages"]):
-            if type(m).__name__ == "ToolMessage":
-                continue
-            text = extract_text(getattr(m, "content", None))
-            if not text or text.strip().startswith(HANDOFF_PHRASES):
-                continue
-            respuesta = text
-            break
+        respuesta = "No pude generar una respuesta esta vez. ¿Puedes reformular tu pregunta?"
 
     contexto = rag_holder["contexto"]
     if not contexto:
