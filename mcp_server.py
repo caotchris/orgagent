@@ -39,19 +39,40 @@ def get_conn():
     return conn
 
 
+UMBRAL_DISTANCIA_RAG = 0.35  # calibrar empiricamente probando preguntas reales; menor = mas estricto
+
 @mcp.tool()
 def buscar_documentos(pregunta: str) -> str:
-    """Busca en la base de conocimiento (RAG) el fragmento mas relevante para responder una pregunta."""
-    vector = embed_query(pregunta)
+    """Busca informacion relevante en los documentos institucionales para responder la pregunta.
+    Devuelve 'NO_ENCONTRADO: ...' si no hay informacion suficientemente relevante."""
+    query_embedding = embed_query(pregunta)
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT content FROM documents ORDER BY embedding <-> %s::vector LIMIT 2", (vector,))
-    rows = cur.fetchall()
+    cur.execute(
+        "SELECT content, source_file, embedding <-> %s::vector AS distancia "
+        "FROM documents ORDER BY distancia ASC LIMIT 5",
+        (query_embedding,),
+    )
+    filas = cur.fetchall()
     cur.close()
     conn.close()
-    if not rows:
-        return "No se encontro informacion relevante."
-    return "\n---\n".join(r[0] for r in rows)
+
+    if not filas:
+        return "NO_ENCONTRADO: no hay documentos cargados en el sistema."
+
+    mejor_distancia = filas[0][2]
+    if mejor_distancia > UMBRAL_DISTANCIA_RAG:
+        return (
+            "NO_ENCONTRADO: no se encontro informacion suficientemente relevante en los "
+            f"documentos institucionales para responder esta pregunta (distancia={mejor_distancia:.3f})."
+        )
+
+    partes = []
+    for content, source_file, distancia in filas:
+        if distancia <= UMBRAL_DISTANCIA_RAG:
+            partes.append(f"[Fuente: {source_file} | relevancia={1 - distancia:.2f}]\n{content}")
+
+    return "\n\n---\n\n".join(partes)
 
 
 @mcp.tool()
